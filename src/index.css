@@ -1,0 +1,68 @@
+@import url('https://fonts.googleapis.com/css2?family=Roboto+Condensed:wght@300;400;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Roboto Condensed", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+  --color-brand: #B0E0E6;
+  --color-brand-dark: #5f9ea0;
+  --color-brand-light: #f0f9fa;
+}
+
+body {
+  font-family: var(--font-sans);
+  @apply bg-slate-50 text-slate-900;
+}
+
+.data-grid-header {
+  @apply px-3 py-3 text-left text-[12px] font-semibold text-slate-600 uppercase tracking-wider border-b border-slate-200 bg-slate-50/90 whitespace-nowrap select-none;
+}
+
+.data-grid-cell {
+  @apply px-3 py-2.5 text-[13px] text-slate-700 border-b border-slate-100 align-middle;
+}
+
+.data-grid-row {
+  @apply hover:bg-[#f0fdfa]/70 transition-colors cursor-pointer;
+}
+
+/* Custom scrollbar for better look */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-slate-100;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-300 rounded-full hover:bg-slate-400 transition-colors;
+}
+
+/* ReactQuill Custom Styles */
+.quill-wrapper {
+  @apply bg-slate-50 border border-slate-200 rounded-lg overflow-hidden;
+}
+
+.quill-wrapper .ql-toolbar.ql-snow {
+  @apply border-none bg-slate-100/50 border-b border-slate-200!;
+}
+
+.quill-wrapper .ql-container.ql-snow {
+  @apply border-none text-lg min-h-[150px] font-sans!;
+}
+
+.quill-wrapper .ql-editor {
+  @apply min-h-[150px] px-3 py-2;
+  white-space: pre-wrap !important;
+  word-break: normal !important;
+}
+
+.quill-wrapper .ql-editor.ql-blank::before {
+  @apply left-3 text-slate-400 font-normal italic!;
+}
+
+.quill-wrapper:focus-within {
+  @apply ring-2 ring-brand-light border-brand;
+}
