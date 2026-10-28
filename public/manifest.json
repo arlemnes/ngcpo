@@ -1,0 +1,43 @@
+{
+  "id": "/",
+  "name": "Gestor de Contratos - Desktop",
+  "short_name": "Contratos",
+  "description": "Sistema de Gestão e Controlo de Contratos Públicos com suporte a Base de Dados em Excel e Servidor Windows.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#0f172a",
+  "background_color": "#f8fafc",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Novo Contrato",
+      "short_name": "Novo",
+      "description": "Criar novo contrato",
+      "url": "/?action=new",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    },
+    {
+      "name": "Base de Dados Excel",
+      "short_name": "Excel",
+      "description": "Abrir gestão da base de dados Excel",
+      "url": "/?action=excel",
+      "icons": [{ "src": "/icon.svg", "sizes": "192x192" }]
+    }
+  ]
+}

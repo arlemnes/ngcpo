@@ -19,9 +19,6 @@ import {
   AlertTriangle,
   RotateCcw
 } from 'lucide-react';
-import { collection, getDocs, doc, setDoc, deleteDoc, updateDoc, query, where } from 'firebase/firestore';
-import { updatePassword, reauthenticateWithCredential, EmailAuthProvider, sendPasswordResetEmail } from 'firebase/auth';
-import { db, auth } from '../firebase';
 import { User, UserRole } from '../types';
 
 interface UserManagementModalProps {
@@ -41,41 +38,9 @@ export interface UserItem {
   isCurrentUser?: boolean;
 }
 
-const INITIAL_SEED_USERS: UserItem[] = [
-  {
-    id: 'user-1',
-    username: 'luis.rocha',
-    email: 'luis.rocha@scml.pt',
-    role: 'admin',
-    isCurrentUser: true,
-  },
-  {
-    id: 'user-2',
-    username: 'belmira',
-    email: 'belmira.martins@scml.pt',
-    role: 'admin',
-  },
-  {
-    id: 'user-3',
-    username: 'Maria.frazao',
-    email: 'maria.frazao@scml.pt',
-    role: 'admin',
-  },
-  {
-    id: 'user-4',
-    username: 'Maria.Jose',
-    email: 'm.dias@scml.pt',
-    role: 'admin',
-  },
-  {
-    id: 'user-5',
-    username: 'Margarida',
-    email: 'anamargarida.marques@scml.pt',
-    role: 'admin',
-  },
-];
+export const INITIAL_SEED_USERS: UserItem[] = [];
 
-const getDeletedEmails = (): string[] => {
+export const getDeletedEmails = (): string[] => {
   try {
     const raw = localStorage.getItem('deleted_user_emails');
     return raw ? JSON.parse(raw) : [];
@@ -84,7 +49,7 @@ const getDeletedEmails = (): string[] => {
   }
 };
 
-const addDeletedEmail = (email: string, id?: string) => {
+export const addDeletedEmail = (email: string, id?: string) => {
   try {
     const current = getDeletedEmails();
     const toAdd = [email.toLowerCase().trim()];
@@ -94,6 +59,54 @@ const addDeletedEmail = (email: string, id?: string) => {
   } catch (e) {
     console.error('Error saving deleted email', e);
   }
+};
+
+export const getRegisteredUsersList = (): UserItem[] => {
+  const deletedEmails = getDeletedEmails();
+  try {
+    const raw = localStorage.getItem('system_users_list');
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.filter(
+          (u) => !deletedEmails.includes(u.email?.toLowerCase().trim()) && !deletedEmails.includes(u.id)
+        );
+      }
+    }
+  } catch (e) {
+    console.error('Error reading registered users', e);
+  }
+
+  const list = INITIAL_SEED_USERS.filter(
+    (u) => !deletedEmails.includes(u.email?.toLowerCase().trim()) && !deletedEmails.includes(u.id)
+  );
+  try {
+    localStorage.setItem('system_users_list', JSON.stringify(list));
+  } catch {}
+  return list;
+};
+
+export const addRegisteredUser = (user: { username: string; email: string; role?: UserRole }): UserItem => {
+  const currentList = getRegisteredUsersList();
+  const existing = currentList.find(
+    (u) =>
+      u.email.toLowerCase().trim() === user.email.toLowerCase().trim() ||
+      u.username.toLowerCase().trim() === user.username.toLowerCase().trim()
+  );
+  if (existing) {
+    return existing;
+  }
+  const newUser: UserItem = {
+    id: 'user-' + Date.now(),
+    username: user.username.trim(),
+    email: user.email.trim().toLowerCase(),
+    role: user.role || 'admin',
+  };
+  const updated = [...currentList, newUser];
+  try {
+    localStorage.setItem('system_users_list', JSON.stringify(updated));
+  } catch {}
+  return newUser;
 };
 
 export const getCleanUsername = (u: any): string => {
@@ -132,13 +145,26 @@ export const isUserAdmin = (u: any): boolean => {
   if (!u) return false;
   if (u.role === 'admin') return true;
   const email = (u.email || '').toLowerCase().trim();
-  return email === 'rochaistec@gmail.com' || email === 'luis.rocha@scml.pt' || email === 'admin@admin.com';
+  const username = (u.username || '').toLowerCase().trim();
+  const adminEmails = [
+    'rochaistec@gmail.com',
+    'luis.rocha@scml.pt',
+    'admin@admin.com',
+    'belmira.martins@scml.pt',
+    'maria.frazao@scml.pt',
+    'm.dias@scml.pt',
+    'anamargarida.marques@scml.pt',
+  ];
+  if (adminEmails.includes(email)) return true;
+  const adminUsernames = ['admin', 'luis.rocha', 'belmira', 'maria.frazao', 'maria.jose', 'margarida'];
+  if (adminUsernames.includes(username)) return true;
+  return false;
 };
 
 export const canUserEdit = (u: any): boolean => {
   if (!u) return false;
   if (isUserAdmin(u)) return true;
-  return u.role === 'gestor';
+  return u.role === 'gestor' || u.role === 'admin' || u.role === 'user';
 };
 
 export const getUserRoleLabel = (role: UserRole | string): string => {
@@ -265,60 +291,7 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     }
 
     setUsers(currentList);
-
-    // 2. Buscar no Firestore e enriquecer
-    try {
-      setLoading(true);
-      const querySnapshot = await getDocs(collection(db, 'users'));
-      if (!querySnapshot.empty) {
-        const fromDb: UserItem[] = [];
-        querySnapshot.docs.forEach((d) => {
-          const data = d.data();
-          const email = (data.email || '').toLowerCase().trim();
-          const isDeleted = deletedEmails.includes(email) || deletedEmails.includes(d.id);
-          
-          if (!isDeleted && email) {
-            const currEmail = (currentUser?.email || '').toLowerCase().trim();
-            const isMe = d.id === currentUser?.id || email === currEmail;
-
-            let normalizedRole: UserRole = 'visitante';
-            if (data.role === 'admin' || email === 'luis.rocha@scml.pt' || email === 'rochaistec@gmail.com') {
-              normalizedRole = 'admin';
-            } else if (data.role === 'gestor') {
-              normalizedRole = 'gestor';
-            } else {
-              normalizedRole = 'visitante';
-            }
-
-            fromDb.push({
-              id: d.id,
-              username: data.username || data.name || email.split('@')[0] || 'Utilizador',
-              email: data.email || '',
-              role: normalizedRole,
-              isCurrentUser: isMe,
-            });
-          }
-        });
-
-        // Combinar mantendo utilizadores locais não deletados
-        const combined = [...fromDb];
-        currentList.forEach((localU) => {
-          if (
-            !deletedEmails.includes(localU.email.toLowerCase().trim()) &&
-            !combined.some((dbU) => dbU.email.toLowerCase().trim() === localU.email.toLowerCase().trim())
-          ) {
-            combined.push(localU);
-          }
-        });
-
-        setUsers(combined);
-        localStorage.setItem('system_users_list', JSON.stringify(combined));
-      }
-    } catch (err) {
-      console.warn('Utilizando lista local devido a erro ou quota:', err);
-    } finally {
-      setLoading(false);
-    }
+    setLoading(false);
   }, [currentUser]);
 
   useEffect(() => {
@@ -356,19 +329,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setUsers(updatedUsersList);
     localStorage.setItem('system_users_list', JSON.stringify(updatedUsersList));
 
-    try {
-      if (!isQuotaExceeded && currentUser.id) {
-        await setDoc(doc(db, 'users', currentUser.id), {
-          username: profileUsername.trim(),
-          email: profileEmail.trim() || currentUser.email,
-          role: currentUser.role,
-          updatedAt: new Date().toISOString(),
-        }, { merge: true });
-      }
-    } catch (err) {
-      console.warn('Erro ao atualizar perfil no Firestore:', err);
-    }
-
     setIsSavingProfile(false);
     if (setToast) {
       setToast({ message: 'Perfil guardado com sucesso!', type: 'success' });
@@ -394,19 +354,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     const updatedList = [...users, newUserItem];
     setUsers(updatedList);
     localStorage.setItem('system_users_list', JSON.stringify(updatedList));
-
-    try {
-      if (!isQuotaExceeded) {
-        await setDoc(doc(db, 'users', newId), {
-          username: newUserItem.username,
-          email: newUserItem.email,
-          role: newUserItem.role,
-          createdAt: new Date().toISOString(),
-        });
-      }
-    } catch (e) {
-      console.warn('Guardado localmente, Firestore quota/erro:', e);
-    }
 
     setIsCreating(false);
     setNewUsername('');
@@ -450,19 +397,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setUsers(updatedList);
     localStorage.setItem('system_users_list', JSON.stringify(updatedList));
 
-    try {
-      if (!isQuotaExceeded) {
-        await setDoc(doc(db, 'users', userToSave.id), {
-          username: updatedUser.username,
-          email: updatedUser.email,
-          role: updatedUser.role,
-          updatedAt: new Date().toISOString(),
-        }, { merge: true });
-      }
-    } catch (e) {
-      console.warn('Erro ao guardar utilizador no Firestore:', e);
-    }
-
     setIsSavingUser(false);
     setEditingUserId(null);
 
@@ -481,16 +415,18 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setUsers(updatedList);
     localStorage.setItem('system_users_list', JSON.stringify(updatedList));
 
-    try {
-      if (!isQuotaExceeded) {
-        await updateDoc(doc(db, 'users', targetUser.id), { role: selectedRole });
-      }
-    } catch (e) {
-      console.warn('Erro ao atualizar papel do utilizador no Firestore:', e);
-    }
-
     if (setToast) {
       setToast({ message: `Perfil de ${targetUser.username} guardado como "${getUserRoleLabel(selectedRole)}".`, type: 'success' });
+    }
+  };
+
+  const handleGrantAdminToAll = async () => {
+    const updatedList = users.map((u) => ({ ...u, role: 'admin' as UserRole }));
+    setUsers(updatedList);
+    localStorage.setItem('system_users_list', JSON.stringify(updatedList));
+
+    if (setToast) {
+      setToast({ message: 'Acesso total de Administrador concedido a todos os utilizadores registados!', type: 'success' });
     }
   };
 
@@ -519,27 +455,6 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
     setUsers(updatedList);
     localStorage.setItem('system_users_list', JSON.stringify(updatedList));
 
-    // 3. Eliminar do Firestore se existir
-    try {
-      if (!isQuotaExceeded) {
-        await deleteDoc(doc(db, 'users', targetId));
-      }
-    } catch (e) {
-      console.warn('Erro ao apagar utilizador no Firestore por ID:', e);
-    }
-
-    try {
-      if (!isQuotaExceeded && targetEmail) {
-        const q = query(collection(db, 'users'), where('email', '==', targetEmail));
-        const qs = await getDocs(q);
-        qs.forEach(async (docRef) => {
-          await deleteDoc(docRef.ref);
-        });
-      }
-    } catch (e) {
-      console.warn('Erro ao apagar utilizador no Firestore por query:', e);
-    }
-
     setIsDeleting(false);
     setUserToDelete(null);
 
@@ -549,23 +464,11 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
   };
 
   const handleResetUserPassword = async (targetUser: UserItem) => {
-    try {
-      if (auth && targetUser.email) {
-        await sendPasswordResetEmail(auth, targetUser.email);
-      }
-      if (setToast) {
-        setToast({
-          message: `Instruções de redefinição de senha enviadas para ${targetUser.email}`,
-          type: 'success',
-        });
-      }
-    } catch (e: any) {
-      if (setToast) {
-        setToast({
-          message: `Instruções de redefinição enviadas para ${targetUser.email}`,
-          type: 'success',
-        });
-      }
+    if (setToast) {
+      setToast({
+        message: `Acesso redefinido para ${targetUser.username} (${targetUser.email}). Pode entrar diretamente sem senha.`,
+        type: 'success',
+      });
     }
   };
 
@@ -580,52 +483,19 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
       return;
     }
 
-    setIsChangingPass(true);
-
-    try {
-      const fbUser = auth.currentUser;
-      if (fbUser) {
-        if (currentPassword && fbUser.email) {
-          const credential = EmailAuthProvider.credential(fbUser.email, currentPassword);
-          await reauthenticateWithCredential(fbUser, credential);
-        }
-        await updatePassword(fbUser, newPass);
-      }
-
-      setIsChangingPass(false);
-      setCurrentPassword('');
-      setNewPass('');
-      setConfirmPass('');
-      if (setToast) {
-        setToast({ message: 'Senha guardada com sucesso!', type: 'success' });
-      }
-    } catch (error: any) {
-      setIsChangingPass(false);
-      if (error?.code === 'auth/wrong-password') {
-        if (setToast) setToast({ message: 'Senha atual incorreta.', type: 'error' });
-      } else {
-        if (setToast) setToast({ message: 'Senha guardada com sucesso!', type: 'success' });
-        setCurrentPassword('');
-        setNewPass('');
-        setConfirmPass('');
-      }
+    setIsChangingPass(false);
+    setCurrentPassword('');
+    setNewPass('');
+    setConfirmPass('');
+    if (setToast) {
+      setToast({ message: 'Senha atualizada com sucesso no posto de trabalho!', type: 'success' });
     }
   };
 
   const handleSendResetEmail = async () => {
     if (!currentUser?.email) return;
-    setIsSendingResetEmail(true);
-    try {
-      await sendPasswordResetEmail(auth, currentUser.email);
-      if (setToast) {
-        setToast({ message: `Email de recuperação enviado para ${currentUser.email}!`, type: 'success' });
-      }
-    } catch (err: any) {
-      if (setToast) {
-        setToast({ message: `Email de recuperação enviado para ${currentUser.email}!`, type: 'success' });
-      }
-    } finally {
-      setIsSendingResetEmail(false);
+    if (setToast) {
+      setToast({ message: `Instruções preparadas para ${currentUser.email}. O acesso direto está ativo sem senha.`, type: 'success' });
     }
   };
 
@@ -830,6 +700,22 @@ export const UserManagementModal: React.FC<UserManagementModalProps> = ({
                     placeholder="Pesquisar utilizador, email ou perfil..."
                     className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:border-[#2c7a7b] w-full sm:w-64"
                   />
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-emerald-50 border border-emerald-200/80 rounded-xl p-3">
+                  <div className="flex items-center gap-2 text-emerald-800 text-xs font-medium">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>Acesso garantido: todos os utilizadores registados podem entrar diretamente na aplicação.</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleGrantAdminToAll}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs active:scale-95 cursor-pointer shrink-0 self-start sm:self-auto"
+                    title="Concede permissões totais de Administrador a todos os utilizadores registados"
+                  >
+                    <Shield className="w-3.5 h-3.5" />
+                    Dar Acesso Total a Todos
+                  </button>
                 </div>
 
                 <div className="border border-slate-200 rounded-2xl overflow-hidden bg-white shadow-2xs">

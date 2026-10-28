@@ -1,0 +1,47 @@
+======================================================================
+  REC - GESTOR DE CONTRATOS PÚBLICOS (SCML)
+  GUIA RÁPIDO: EXECUTAR LOCALMENTE NO COMPUTADOR OU SERVIDOR DE REDE
+======================================================================
+
+Este modo permite correr o sistema 100% no seu computador ou num servidor 
+da rede interna da Santa Casa (SCML), sem qualquer serviço externo de Cloud!
+
+----------------------------------------------------------------------
+PASSO 1: INSTALAR O NODE.JS (Se ainda não tiver instalado)
+----------------------------------------------------------------------
+O Node.js é o motor gratuito e seguro que permite correr a aplicação:
+1. Vá a: https://nodejs.org
+2. Descarregue a versão LTS (Recomendada).
+3. Instale com as opções normais (Seguinte > Seguinte > Concluir).
+
+----------------------------------------------------------------------
+PASSO 2: INICIAR A APLICAÇÃO
+----------------------------------------------------------------------
+1. Extraia todos os ficheiros deste arquivo ZIP para uma pasta no seu PC 
+   (ex: C:\GestorContratos ou numa pasta partilhada da rede Y:\).
+2. Dê duplo clique no ficheiro:
+   --> INICIAR_SISTEMA.bat <--
+3. Na primeira vez, o sistema prepara os componentes automaticamente.
+4. O seu navegador (Edge ou Chrome) abre logo com a aplicação pronta:
+   http://localhost:3000
+
+----------------------------------------------------------------------
+PASSO 3: LIGAR AO FICHEIRO EXCEL DA REDE (Drive Y:\)
+----------------------------------------------------------------------
+Como a aplicação está a correr no seu próprio computador:
+1. Na barra do topo da aplicação, clique no botão "Excel Servidor".
+2. No campo "Caminho do Ficheiro Excel no Servidor de Dados", escreva 
+   o caminho exato da sua folha de cálculo na rede, por exemplo:
+   Y:\REC-NGCC-NGPO\NGCPO\contratos_database.xlsx
+3. Clique em "Guardar Caminho".
+4. PRONTO! A partir desse momento:
+   - A aplicação lê e grava DIRETAMENTE no seu Excel da Drive Y:\.
+   - Qualquer contrato criado, editado ou eliminado altera o ficheiro real na rede.
+   - Zero nuvem, zero perda de dados, zero reposição para registos antigos!
+
+----------------------------------------------------------------------
+PARA FECHAR:
+----------------------------------------------------------------------
+Basta fechar a janela preta do INICIAR_SISTEMA.bat.
+Para voltar a abrir no dia seguinte, basta clicar de novo no INICIAR_SISTEMA.bat!
+======================================================================

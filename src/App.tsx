@@ -1307,14 +1307,18 @@ export default function App() {
         'Comunicações importantes e observações': stripHtml(c.comunicacoesObservacoes),
 
         // Prazos de Execução do Contrato
+        'Data da consignação ou PSS': safeFormatDate(c.dataConsignacaoPSS || c.consignacaoDate || c.dataConsignacao),
         'Data início contrato': safeFormatDate(c.prazosNovaDataInicio || c.startDate || c.Datainiciocontrato || c.prazosDataInicio),
         'Data fim contrato': safeFormatDate(c.prazosNovaDataFim || c.endDate || c.DataFimContrato || c.prazosDataFim || c.novaDataFimContrato),
-        'Prazos e Pagamentos Contratados': stripHtml(c.planosPagamentoFaturamentos),
+        'Prazos': stripHtml(c.planosPagamentoFaturamentos),
         'Prorrogações de Prazos': stripHtml(c.prorrogacoesPrazos),
         'Valor total de despesas aprovada(contratos, adendas, indemnizações, juros, etc.)': stripHtml(c.valorTotalDespesas),
         'Valor Total Executado': stripHtml(c.valorTotalExecutado),
         'Percentagem': stripHtml(c.percentagem),
         'Data da Ultima Validação': safeFormatDate(c.dataUltimaFaturacao),
+
+        // Execução Financeira
+        'Observações de Execução Financeira': stripHtml(c.execucaoFinanceiraObservacoes || ''),
       };
 
       // Incluir marcos de execução/faturação se existirem
@@ -2659,6 +2663,7 @@ const getDefaultContractInput = (): ContractInput => ({
   extincaoValor: '',
   avaliacaoObservacoes: '',
   comunicacoesObservacoes: '',
+  dataConsignacaoPSS: '',
   prazosNovaDataInicio: '',
   prazosNovaDataFim: '',
   planosPagamentoFaturamentos: '',
@@ -2667,6 +2672,7 @@ const getDefaultContractInput = (): ContractInput => ({
   valorTotalExecutado: '0,00 €',
   percentagem: '0,00%',
   dataUltimaFaturacao: '',
+  execucaoFinanceiraObservacoes: '',
   prazosMilestones: createDefaultMilestones(60),
   opinionObservations: '',
   priceRevisionObject: '',
@@ -2949,7 +2955,22 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
       sanitized.dataUltimaFaturacao = toIsoDate(sanitized.dataUltimaFaturacao) || sanitized.dataUltimaFaturacao;
     }
 
-    // Sincronizar e normalizar datas de início e fim para formato ISO (AAAA-MM-DD)
+    // Sincronizar e normalizar datas para formato ISO (AAAA-MM-DD)
+    const rawSig = sanitized.signatureDate || sanitized.dataAssinaturaContrato || sanitized.prazosDataAssinatura || '';
+    if (rawSig) {
+      const isoSig = toIsoDate(rawSig) || rawSig;
+      sanitized.signatureDate = isoSig;
+      sanitized.dataAssinaturaContrato = isoSig;
+    }
+
+    const rawCons = sanitized.dataConsignacaoPSS || sanitized.consignacaoDate || sanitized.dataConsignacao || '';
+    if (rawCons) {
+      const isoCons = toIsoDate(rawCons) || rawCons;
+      sanitized.dataConsignacaoPSS = isoCons;
+      sanitized.consignacaoDate = isoCons;
+      sanitized.dataConsignacao = isoCons;
+    }
+
     const rawStart = sanitized.prazosNovaDataInicio || sanitized.prazosDataInicio || sanitized.startDate || sanitized.Datainiciocontrato || sanitized.datainiciocontrato || '';
     const rawEnd = sanitized.prazosNovaDataFim || sanitized.prazosDataFim || sanitized.endDate || sanitized.DataFimContrato || sanitized.datafimcontrato || sanitized.novaDataFimContrato || '';
     const isoStart = toIsoDate(rawStart) || rawStart;
@@ -3004,9 +3025,18 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
 
     const codeVal = (formData.code || '').trim() || `CT-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
+    const rawSig = formData.signatureDate || formData.dataAssinaturaContrato || '';
+    const sigVal = toIsoDate(rawSig) || rawSig;
+    const rawCons = formData.dataConsignacaoPSS || formData.consignacaoDate || formData.dataConsignacao || '';
+    const consVal = toIsoDate(rawCons) || rawCons;
+
     onSave({
       ...formData,
       code: codeVal,
+      signatureDate: sigVal,
+      dataAssinaturaContrato: sigVal,
+      dataConsignacaoPSS: consVal,
+      consignacaoDate: consVal,
       startDate: start,
       endDate: end,
       prazosNovaDataInicio: start,
@@ -3468,15 +3498,22 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
 
     // 11. Prazos de Execução do Contrato
     addTabSection("11. Prazos de Execução do Contrato", [
+      { label: "Data de Assinatura do Contrato", value: safeFormatDate(formData.signatureDate || formData.dataAssinaturaContrato) },
+      { label: "Data da consignação ou PSS", value: safeFormatDate(formData.dataConsignacaoPSS || formData.consignacaoDate || formData.dataConsignacao) },
       { label: "Data início contrato", value: safeFormatDate(formData.prazosNovaDataInicio || formData.startDate) },
       { label: "Data fim contrato", value: safeFormatDate(formData.prazosNovaDataFim || formData.endDate || formData.validityDate) },
-      { label: "Prazos e Pagamentos Contratados", value: formData.planosPagamentoFaturamentos },
+      { label: "Prazos", value: formData.planosPagamentoFaturamentos },
       { label: "Prorrogações de Prazos", value: formData.prorrogacoesPrazos },
+      { label: "Pasta Local / Rede", value: formData.localFolderLink },
+    ]);
+
+    // 12. Execução Financeira
+    addTabSection("12. Execução Financeira", [
       { label: "Valor total de despesas aprovada(contratos, adendas, indemnizações, juros, etc.)", value: formData.valorTotalDespesas },
       { label: "Valor Total Executado", value: formData.valorTotalExecutado },
       { label: "Percentagem Executada", value: formData.percentagem ? (formData.percentagem.toString().includes('%') ? formData.percentagem : `${formData.percentagem}%`) : '' },
-      { label: "Data da Ultima Validação", value: safeFormatDate(formData.dataUltimaFaturacao) },
-      { label: "Pasta Local / Rede", value: formData.localFolderLink },
+      { label: "Data da Última Validação / Faturação", value: safeFormatDate(formData.dataUltimaFaturacao) },
+      { label: "Observações da Execução Financeira", value: formData.execucaoFinanceiraObservacoes },
     ]);
 
     // Tabela de Marcos de Execução e Faturação (se existirem)
@@ -3521,8 +3558,8 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
       autoTable(doc, {
         startY: yPos,
         head: [
-          [{ content: 'MARCOS DE EXECUÇÃO E FATURAÇÃO', colSpan: 5, styles: { halign: 'left', fillColor: [30, 58, 95] } }],
-          ['#', 'Descrição do Marco', 'Data (Dia/Mês/Ano)', 'NE', 'Valor Validado (€)']
+          [{ content: 'TABELA DE FATURAÇÃO', colSpan: 5, styles: { halign: 'left', fillColor: [30, 58, 95] } }],
+          ['#', 'Descrição', 'Data (Dia/Mês/Ano)', 'NE', 'Valor Validado (€)']
         ],
         body: milestoneRows,
         foot: footData.length > 0 ? footData : undefined,
@@ -3690,6 +3727,7 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
     { id: 'avaliacao', label: 'Avaliação do Fornecedor' },
     { id: 'comunicacoes', label: 'Comunicações Importantes' },
     { id: 'prazos', label: 'Prazos de Execução do Contrato' },
+    { id: 'execucao_financeira', label: 'Execução Financeira' },
   ] as const;
 
   useEffect(() => {
@@ -3732,7 +3770,7 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
         initial={{ opacity: 0, scale: 0.95, y: 20 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.95, y: 20 }}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl overflow-hidden border border-slate-200 my-6"
+        className="bg-white rounded-2xl shadow-2xl w-full max-w-[1385px] overflow-hidden border border-slate-200 my-6"
       >
         <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-white">
           <div>
@@ -4502,13 +4540,48 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
 
           {activeTab === 'prazos' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-6">
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-6">
                 <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600">Data início contrato:</label>
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data da Assinatura do Contrato:</label>
                   <input
                     type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm"
-                    value={formData.prazosNovaDataInicio || formData.startDate || formData.Datainiciocontrato || formData.prazosDataInicio || ''}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    value={toIsoDate(formData.signatureDate || formData.dataAssinaturaContrato || formData.dataAssinatura) || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        signatureDate: val,
+                        dataAssinaturaContrato: val,
+                        dataAssinatura: val,
+                        prazosDataAssinatura: val
+                      });
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data da consignação ou PSS:</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    value={toIsoDate(formData.dataConsignacaoPSS || formData.consignacaoDate || formData.dataConsignacao) || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        dataConsignacaoPSS: val,
+                        consignacaoDate: val,
+                        dataConsignacao: val
+                      });
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data início contrato:</label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    value={toIsoDate(formData.prazosNovaDataInicio || formData.startDate || formData.Datainiciocontrato || formData.prazosDataInicio) || ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       setFormData({
@@ -4522,11 +4595,11 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600">Data fim contrato:</label>
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data fim contrato:</label>
                   <input
                     type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm"
-                    value={formData.prazosNovaDataFim || formData.endDate || formData.DataFimContrato || formData.prazosDataFim || formData.novaDataFimContrato || ''}
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    value={toIsoDate(formData.prazosNovaDataFim || formData.endDate || formData.DataFimContrato || formData.prazosDataFim || formData.novaDataFimContrato) || ''}
                     onChange={(e) => {
                       const val = e.target.value;
                       setFormData({
@@ -4544,7 +4617,7 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
               </div>
 
               <div className="space-y-1 w-full pt-4">
-                <label className="text-[13px] font-medium text-slate-600">Prazos e Pagamentos Contratados:</label>
+                <label className="text-[13px] font-medium text-slate-600">Prazos:</label>
                 <textarea
                   rows={6}
                   className="w-full px-3 py-1.5 bg-[#F2F2F2] border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm resize-y"
@@ -4562,310 +4635,410 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                   onChange={(e) => setFormData({ ...formData, prorrogacoesPrazos: e.target.value })}
                 />
               </div>
+            </div>
+          )}
 
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-6 pt-6 items-end">
-                <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block">Valor total de despesas aprovada(contratos, adendas, indemnizações, juros, etc.)</label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm font-semibold"
-                    value={formData.valorTotalDespesas || '0,00 €'}
-                    onChange={(e) => setFormData({ ...formData, valorTotalDespesas: e.target.value })}
-                    onBlur={(e) => {
-                      const val = parseCurrency(e.target.value);
-                      if (e.target.value.trim() && val > 0) {
-                        const formatted = val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00A0/g, ' ') + ' €';
-                        setFormData({ ...formData, valorTotalDespesas: formatted });
-                      }
-                    }}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block">Valor Total Executado</label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-1.5 bg-slate-100 border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm font-semibold"
-                    value={formData.valorTotalExecutado || '0,00 €'}
-                    readOnly
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block">Percentagem</label>
-                  <input
-                    type="text"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm font-semibold"
-                    value={formData.percentagem || '0,00%'}
-                    onChange={(e) => setFormData({ ...formData, percentagem: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600">Data da Ultima Validação</label>
-                  <input
-                    type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm"
-                    value={formData.dataUltimaFaturacao || ''}
-                    onChange={(e) => setFormData({ ...formData, dataUltimaFaturacao: e.target.value })}
-                  />
-                </div>
-              </div>
+          {activeTab === 'execucao_financeira' && (() => {
+            const despesasVal = parseCurrency(formData.valorTotalDespesas);
+            const executadoVal = parseCurrency(formData.valorTotalExecutado);
+            const saldoRemanescente = despesasVal - executadoVal;
+            const pctVal = despesasVal > 0 ? (executadoVal / despesasVal) * 100 : 0;
+            const isExceeded = despesasVal > 0 && executadoVal > despesasVal;
 
-              <div className="space-y-3 pt-6">
-                <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
-                      Tabela de Marcos / Autos de Medição e Faturação
-                    </span>
-                    <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full border border-slate-200">
-                      {(formData.prazosMilestones || []).length} linhas
-                    </span>
+            return (
+              <div className="space-y-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                {/* KPI Cards */}
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  {/* Despesas Aprovadas */}
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Despesas Aprovadas
+                      </span>
+                      <Euro size={16} className="text-slate-400" />
+                    </div>
+                    <input
+                      type="text"
+                      className="w-full px-3 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-blue-600 font-bold text-base transition-colors"
+                      value={formData.valorTotalDespesas || '0,00 €'}
+                      onChange={(e) => setFormData({ ...formData, valorTotalDespesas: e.target.value })}
+                      onBlur={(e) => {
+                        const val = parseCurrency(e.target.value);
+                        if (e.target.value.trim() && val > 0) {
+                          const formatted = val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00A0/g, ' ') + ' €';
+                          setFormData({ ...formData, valorTotalDespesas: formatted });
+                        }
+                      }}
+                      placeholder="0,00 €"
+                    />
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Contratos, adendas, indemnizações e juros
+                    </p>
+                  </div>
+
+                  {/* Valor Total Executado */}
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Total Executado
+                      </span>
+                      <CheckCircle2 size={16} className="text-emerald-500" />
+                    </div>
+                    <div className="px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-lg font-bold text-emerald-800 text-base">
+                      {formData.valorTotalExecutado || '0,00 €'}
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Soma dos autos validados na tabela
+                    </p>
+                  </div>
+
+                  {/* Saldo Remanescente */}
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Saldo Remanescente
+                      </span>
+                      <span className={cn(
+                        "text-[10px] font-bold px-1.5 py-0.5 rounded",
+                        saldoRemanescente >= 0 ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                      )}>
+                        {saldoRemanescente >= 0 ? "Disponível" : "Excesso"}
+                      </span>
+                    </div>
+                    <div className={cn(
+                      "px-3 py-1.5 rounded-lg font-bold text-base border",
+                      saldoRemanescente >= 0 
+                        ? "bg-slate-50 border-slate-200 text-slate-900" 
+                        : "bg-red-50 border-red-200 text-red-700"
+                    )}>
+                      {saldoRemanescente.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00A0/g, ' ')} €
+                    </div>
+                    <p className="text-[11px] text-slate-400 leading-tight">
+                      Despesas aprovadas menos total executado
+                    </p>
+                  </div>
+
+                  {/* Taxa de Execução */}
+                  <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        Taxa de Execução
+                      </span>
+                      <Percent size={16} className="text-slate-400" />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <input
+                        type="text"
+                        className="w-full px-3 py-1.5 bg-slate-50 hover:bg-white focus:bg-white border border-slate-300 rounded-lg text-slate-900 outline-none focus:border-blue-600 font-bold text-base transition-colors"
+                        value={formData.percentagem || '0,00%'}
+                        onChange={(e) => setFormData({ ...formData, percentagem: e.target.value })}
+                        placeholder="0,00%"
+                      />
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className={cn(
+                          "h-full transition-all duration-500 rounded-full",
+                          isExceeded ? "bg-red-500" : pctVal > 80 ? "bg-amber-500" : "bg-blue-600"
+                        )}
+                        style={{ width: `${Math.min(100, Math.max(0, pctVal))}%` }}
+                      />
+                    </div>
                   </div>
                 </div>
 
-                <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-xs max-h-[620px] overflow-y-auto">
-                  <table className="w-full text-left border-collapse">
-                    <thead className="sticky top-0 bg-slate-100 z-10 shadow-xs">
-                      <tr className="bg-slate-100 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
-                        <th className="py-2.5 px-3 w-12 text-center">#</th>
-                        <th className="py-2.5 px-3">Descrição</th>
-                        <th className="py-2.5 px-3 w-40 text-center">Data (Dia/Mês/Ano)</th>
-                        <th className="py-2.5 px-3 w-28">NE</th>
-                        <th className="py-2.5 px-3 w-40 text-right">Valor Validado (€)</th>
-                        <th className="py-2.5 px-2 w-10 text-center"></th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-200">
-                      {(formData.prazosMilestones || []).length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="py-8 text-center text-slate-400 text-sm">
-                            Nenhum marco de faturação. Clique em "Adicionar linha à tabela" para começar.
-                          </td>
+                {/* Tabela de Marcos / Autos de Medição e Faturação */}
+                <div className="space-y-3 pt-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+                    <div className="flex items-center gap-2">
+                      <FileSpreadsheet size={18} className="text-blue-700" />
+                      <span className="text-xs font-semibold uppercase tracking-wider text-slate-700">
+                        Tabela de Faturação
+                      </span>
+                      <span className="px-2 py-0.5 text-xs font-medium bg-slate-100 text-slate-600 rounded-full border border-slate-200">
+                        {(formData.prazosMilestones || []).length} linhas
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-500 italic">
+                      Dica: Pode copiar e colar diretamente de folhas de cálculo Excel (Ctrl+V)
+                    </span>
+                  </div>
+
+                  <div className="border border-slate-200 rounded-lg overflow-hidden bg-white shadow-xs max-h-[620px] overflow-y-auto">
+                    <table className="w-full text-left border-collapse">
+                      <thead className="sticky top-0 bg-slate-100 z-10 shadow-xs">
+                        <tr className="bg-slate-100 text-slate-700 text-xs font-semibold uppercase tracking-wider border-b border-slate-200">
+                          <th className="py-2.5 px-3 w-12 text-center">#</th>
+                          <th className="py-2.5 px-3">Descrição</th>
+                          <th className="py-2.5 px-3 w-40 text-center">Data (Dia/Mês/Ano)</th>
+                          <th className="py-2.5 px-3 w-28">NE</th>
+                          <th className="py-2.5 px-3 w-40 text-right">Valor Validado (€)</th>
+                          <th className="py-2.5 px-2 w-10 text-center"></th>
                         </tr>
-                      ) : (
-                        (formData.prazosMilestones || []).map((milestone: any, index: number) => (
-                          <tr key={index} className="hover:bg-slate-50/70 transition-colors group">
-                            <td className="py-2 px-3 text-center text-xs font-semibold text-slate-400 group-hover:text-slate-700">
-                              {index + 1}
+                      </thead>
+                      <tbody className="divide-y divide-slate-200">
+                        {(formData.prazosMilestones || []).length === 0 ? (
+                          <tr>
+                            <td colSpan={6} className="py-8 text-center text-slate-400 text-sm">
+                              Nenhum marco de faturação. Clique em "Adicionar linha à tabela" para começar.
                             </td>
-                            <td className="py-1.5 px-2">
-                              <input
-                                type="text"
-                                data-row={index}
-                                data-col="descricao"
-                                placeholder={`Descrição do marco / auto ${index + 1}...`}
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm"
-                                value={milestone.descricao || ''}
-                                onPaste={(e) => handleTablePaste(e, index, 'descricao')}
-                                onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'descricao')}
-                                onChange={(e) => {
-                                  const newMilestones = [...(formData.prazosMilestones || [])];
-                                  newMilestones[index] = { ...newMilestones[index], descricao: e.target.value };
-                                  setFormData({ ...formData, prazosMilestones: newMilestones });
-                                }}
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <div className="relative flex items-center">
+                          </tr>
+                        ) : (
+                          (formData.prazosMilestones || []).map((milestone: any, index: number) => (
+                            <tr key={index} className="hover:bg-slate-50/70 transition-colors group">
+                              <td className="py-2 px-3 text-center text-xs font-semibold text-slate-400 group-hover:text-slate-700">
+                                {index + 1}
+                              </td>
+                              <td className="py-1.5 px-2">
                                 <input
                                   type="text"
                                   data-row={index}
-                                  data-col="dataFatura"
-                                  placeholder="DD/MM/AAAA"
-                                  className="w-full pl-2.5 pr-7 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm text-center font-mono"
-                                  value={milestone.dataFatura || ''}
-                                  onPaste={(e) => handleTablePaste(e, index, 'dataFatura')}
-                                  onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'dataFatura')}
+                                  data-col="descricao"
+                                  placeholder={`Descrição ${index + 1}...`}
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm"
+                                  value={milestone.descricao || ''}
+                                  onPaste={(e) => handleTablePaste(e, index, 'descricao')}
+                                  onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'descricao')}
                                   onChange={(e) => {
                                     const newMilestones = [...(formData.prazosMilestones || [])];
-                                    newMilestones[index] = { ...newMilestones[index], dataFatura: e.target.value };
+                                    newMilestones[index] = { ...newMilestones[index], descricao: e.target.value };
                                     setFormData({ ...formData, prazosMilestones: newMilestones });
                                   }}
-                                  onBlur={(e) => {
-                                    const formatted = formatDatePt(e.target.value);
-                                    if (formatted && formatted !== e.target.value) {
-                                      const newMilestones = [...(formData.prazosMilestones || [])];
-                                      newMilestones[index] = { ...newMilestones[index], dataFatura: formatted };
-                                      setFormData({ ...formData, prazosMilestones: newMilestones });
-                                    }
-                                  }}
                                 />
-                                <label className="absolute right-1.5 text-slate-400 hover:text-slate-700 cursor-pointer p-0.5" title="Selecionar data (Dia, Mês, Ano)">
-                                  <Calendar size={14} />
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <div className="relative flex items-center">
                                   <input
-                                    type="date"
-                                    className="sr-only"
-                                    value={toIsoDate(milestone.dataFatura) || ''}
+                                    type="text"
+                                    data-row={index}
+                                    data-col="dataFatura"
+                                    placeholder="DD/MM/AAAA"
+                                    className="w-full pl-2.5 pr-7 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm text-center font-mono"
+                                    value={milestone.dataFatura || ''}
+                                    onPaste={(e) => handleTablePaste(e, index, 'dataFatura')}
+                                    onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'dataFatura')}
                                     onChange={(e) => {
-                                      if (e.target.value) {
-                                        const formatted = formatDatePt(e.target.value);
+                                      const newMilestones = [...(formData.prazosMilestones || [])];
+                                      newMilestones[index] = { ...newMilestones[index], dataFatura: e.target.value };
+                                      setFormData({ ...formData, prazosMilestones: newMilestones });
+                                    }}
+                                    onBlur={(e) => {
+                                      const formatted = formatDatePt(e.target.value);
+                                      if (formatted && formatted !== e.target.value) {
                                         const newMilestones = [...(formData.prazosMilestones || [])];
                                         newMilestones[index] = { ...newMilestones[index], dataFatura: formatted };
                                         setFormData({ ...formData, prazosMilestones: newMilestones });
                                       }
                                     }}
                                   />
-                                </label>
-                              </div>
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <input
-                                type="text"
-                                data-row={index}
-                                data-col="numero"
-                                placeholder="Ex: 50"
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm text-center"
-                                value={milestone.numero || ''}
-                                onPaste={(e) => handleTablePaste(e, index, 'numero')}
-                                onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'numero')}
-                                onChange={(e) => {
-                                  const newMilestones = [...(formData.prazosMilestones || [])];
-                                  newMilestones[index] = { ...newMilestones[index], numero: e.target.value };
-                                  setFormData({ ...formData, prazosMilestones: newMilestones });
-                                }}
-                              />
-                            </td>
-                            <td className="py-1.5 px-2">
-                              <input
-                                type="text"
-                                data-row={index}
-                                data-col="valorFaturado"
-                                placeholder="0,00 €"
-                                className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm font-semibold text-right"
-                                value={milestone.valorFaturado || ''}
-                                onPaste={(e) => handleTablePaste(e, index, 'valorFaturado')}
-                                onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'valorFaturado')}
-                                onChange={(e) => {
-                                  const newMilestones = [...(formData.prazosMilestones || [])];
-                                  newMilestones[index] = { ...newMilestones[index], valorFaturado: e.target.value };
-                                  setFormData({ ...formData, prazosMilestones: newMilestones });
-                                }}
-                                onBlur={(e) => {
-                                  const val = parseCurrency(e.target.value);
-                                  if (e.target.value.trim() && val > 0) {
-                                    const formatted = val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00A0/g, ' ') + ' €';
+                                  <label className="absolute right-1.5 text-slate-400 hover:text-slate-700 cursor-pointer p-0.5" title="Selecionar data (Dia, Mês, Ano)">
+                                    <Calendar size={14} />
+                                    <input
+                                      type="date"
+                                      className="sr-only"
+                                      value={toIsoDate(milestone.dataFatura) || ''}
+                                      onChange={(e) => {
+                                        if (e.target.value) {
+                                          const formatted = formatDatePt(e.target.value);
+                                          const newMilestones = [...(formData.prazosMilestones || [])];
+                                          newMilestones[index] = { ...newMilestones[index], dataFatura: formatted };
+                                          setFormData({ ...formData, prazosMilestones: newMilestones });
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  data-row={index}
+                                  data-col="numero"
+                                  placeholder="Ex: 50"
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm text-center"
+                                  value={milestone.numero || ''}
+                                  onPaste={(e) => handleTablePaste(e, index, 'numero')}
+                                  onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'numero')}
+                                  onChange={(e) => {
                                     const newMilestones = [...(formData.prazosMilestones || [])];
-                                    newMilestones[index] = { ...newMilestones[index], valorFaturado: formatted };
+                                    newMilestones[index] = { ...newMilestones[index], numero: e.target.value };
                                     setFormData({ ...formData, prazosMilestones: newMilestones });
-                                  }
-                                }}
-                              />
+                                  }}
+                                />
+                              </td>
+                              <td className="py-1.5 px-2">
+                                <input
+                                  type="text"
+                                  data-row={index}
+                                  data-col="valorFaturado"
+                                  placeholder="0,00 €"
+                                  className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded text-slate-700 outline-none focus:border-brand text-sm font-semibold text-right"
+                                  value={milestone.valorFaturado || ''}
+                                  onPaste={(e) => handleTablePaste(e, index, 'valorFaturado')}
+                                  onKeyDown={(e) => handleMilestoneKeyDown(e, index, 'valorFaturado')}
+                                  onChange={(e) => {
+                                    const newMilestones = [...(formData.prazosMilestones || [])];
+                                    newMilestones[index] = { ...newMilestones[index], valorFaturado: e.target.value };
+                                    setFormData({ ...formData, prazosMilestones: newMilestones });
+                                  }}
+                                  onBlur={(e) => {
+                                    const val = parseCurrency(e.target.value);
+                                    if (e.target.value.trim() && val > 0) {
+                                      const formatted = val.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).replace(/\u00A0/g, ' ') + ' €';
+                                      const newMilestones = [...(formData.prazosMilestones || [])];
+                                      newMilestones[index] = { ...newMilestones[index], valorFaturado: formatted };
+                                      setFormData({ ...formData, prazosMilestones: newMilestones });
+                                    }
+                                  }}
+                                />
+                              </td>
+                              <td className="py-1.5 px-2 text-center">
+                                <button
+                                  type="button"
+                                  title="Limpar ou remover linha"
+                                  onClick={() => {
+                                    const newMilestones = [...(formData.prazosMilestones || [])];
+                                    if (newMilestones.length > 60) {
+                                      newMilestones.splice(index, 1);
+                                    } else {
+                                      newMilestones[index] = { descricao: '', dataFatura: '', numero: '', valorFaturado: '' };
+                                    }
+                                    setFormData({ ...formData, prazosMilestones: newMilestones });
+                                  }}
+                                  className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
+                                >
+                                  ×
+                                </button>
+                              </td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                      {(formData.prazosMilestones || []).length > 0 && (
+                        <tfoot className="sticky bottom-0 bg-slate-50 z-10 border-t-2 border-slate-300 shadow-xs">
+                          <tr className="bg-slate-50 font-semibold text-slate-700 text-xs">
+                            <td colSpan={4} className="py-2.5 px-3 text-right">Total Executado:</td>
+                            <td className="py-2.5 px-3 text-right text-brand font-bold text-sm">
+                              {formData.valorTotalExecutado || '0,00 €'}
                             </td>
-                            <td className="py-1.5 px-2 text-center">
-                              <button
-                                type="button"
-                                title="Limpar ou remover linha"
-                                onClick={() => {
-                                  const newMilestones = [...(formData.prazosMilestones || [])];
-                                  if (newMilestones.length > 60) {
-                                    newMilestones.splice(index, 1);
-                                  } else {
-                                    newMilestones[index] = { descricao: '', dataFatura: '', numero: '', valorFaturado: '' };
-                                  }
-                                  setFormData({ ...formData, prazosMilestones: newMilestones });
-                                }}
-                                className="w-7 h-7 inline-flex items-center justify-center text-slate-400 hover:text-red-600 hover:bg-red-50 rounded transition-colors"
-                              >
-                                ×
-                              </button>
-                            </td>
+                            <td></td>
                           </tr>
-                        ))
+                        </tfoot>
                       )}
-                    </tbody>
-                    {(formData.prazosMilestones || []).length > 0 && (
-                      <tfoot className="sticky bottom-0 bg-slate-50 z-10 border-t-2 border-slate-300 shadow-xs">
-                        <tr className="bg-slate-50 font-semibold text-slate-700 text-xs">
-                          <td colSpan={4} className="py-2.5 px-3 text-right">Total Executado:</td>
-                          <td className="py-2.5 px-3 text-right text-brand font-bold text-sm">
-                            {formData.valorTotalExecutado || '0,00 €'}
-                          </td>
-                          <td></td>
-                        </tr>
-                      </tfoot>
-                    )}
-                  </table>
-                </div>
-
-                <div className="flex items-center justify-between gap-3 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newMilestones = [...(formData.prazosMilestones || [])];
-                      newMilestones.push({ descricao: '', dataFatura: '', numero: '', valorFaturado: '' });
-                      setFormData({ ...formData, prazosMilestones: newMilestones });
-                    }}
-                    className="flex-1 py-2 border-2 border-dashed border-slate-300 hover:border-brand text-slate-600 hover:text-brand transition-colors text-sm font-medium rounded-lg flex items-center justify-center gap-2 bg-slate-50/50 hover:bg-white"
-                  >
-                    <span>+</span> Adicionar linha à tabela
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const newMilestones = [...(formData.prazosMilestones || [])];
-                      for (let i = 0; i < 10; i++) {
-                        newMilestones.push({ descricao: '', dataFatura: '', numero: '', valorFaturado: '' });
-                      }
-                      setFormData({ ...formData, prazosMilestones: newMilestones });
-                    }}
-                    className="px-4 py-2 border border-slate-300 hover:border-slate-400 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium rounded-lg"
-                  >
-                    + 10 Linhas
-                  </button>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 pt-6">
-                <label className="text-[13px] font-medium text-slate-600">Anexos</label>
-                <div className="mt-1">
-                  <label className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm cursor-pointer hover:bg-slate-50 transition-colors w-fit">
-                    <Paperclip size={16} />
-                    Clicar aqui para anexar um ficheiro
-                    <input
-                      type="file"
-                      className="hidden"
-                      multiple
-                      onChange={(e) => {
-                        const files = Array.from(e.target.files || []);
-                        const newAttachments = files.map(file => ({
-                          name: file.name,
-                          url: URL.createObjectURL(file),
-                          type: file.type
-                        }));
-                        setFormData({ 
-                          ...formData, 
-                          attachments: [...(formData.attachments || []), ...newAttachments] 
-                        });
-                      }}
-                    />
-                  </label>
-                </div>
-                {(formData.attachments || []).length > 0 && (
-                  <div className="mt-4 space-y-2">
-                    {(formData.attachments || []).map((file: any, index: number) => (
-                      <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-400">
-                            <FileText size={16} />
-                          </div>
-                          <span className="text-sm font-medium text-slate-700">{file.name}</span>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const newAttachments = [...(formData.attachments || [])];
-                            newAttachments.splice(index, 1);
-                            setFormData({ ...formData, attachments: newAttachments });
-                          }}
-                          className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    ))}
+                    </table>
                   </div>
-                )}
+
+                  <div className="flex items-center justify-between gap-3 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newMilestones = [...(formData.prazosMilestones || [])];
+                        newMilestones.push({ descricao: '', dataFatura: '', numero: '', valorFaturado: '' });
+                        setFormData({ ...formData, prazosMilestones: newMilestones });
+                      }}
+                      className="flex-1 py-2 border-2 border-dashed border-slate-300 hover:border-brand text-slate-600 hover:text-brand transition-colors text-sm font-medium rounded-lg flex items-center justify-center gap-2 bg-slate-50/50 hover:bg-white"
+                    >
+                      <span>+</span> Adicionar linha à tabela
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newMilestones = [...(formData.prazosMilestones || [])];
+                        for (let i = 0; i < 10; i++) {
+                          newMilestones.push({ descricao: '', dataFatura: '', numero: '', valorFaturado: '' });
+                        }
+                        setFormData({ ...formData, prazosMilestones: newMilestones });
+                      }}
+                      className="px-4 py-2 border border-slate-300 hover:border-slate-400 text-slate-700 hover:bg-slate-50 transition-colors text-sm font-medium rounded-lg"
+                    >
+                      + 10 Linhas
+                    </button>
+                  </div>
+                </div>
+
+                {/* Observações da Execução Financeira */}
+                <div className="space-y-1 w-full pt-4">
+                  <label className="text-[13px] font-medium text-slate-600">
+                    Observações e Notas da Execução Financeira:
+                  </label>
+                  <textarea
+                    rows={4}
+                    className="w-full px-3 py-2 bg-[#F2F2F2] border border-slate-300 text-slate-700 outline-none focus:border-blue-500 rounded-md text-sm resize-y"
+                    value={formData.execucaoFinanceiraObservacoes || ''}
+                    onChange={(e) => setFormData({ ...formData, execucaoFinanceiraObservacoes: e.target.value })}
+                    placeholder="Registo de adiantamentos, cauções bancárias retidas, faturas pendentes de liquidação, desvios orçamentais ou outras notas financeiras..."
+                  />
+                </div>
+
+                {/* Anexos Financeiros */}
+                <div className="space-y-1.5 pt-4">
+                  <label className="text-[13px] font-medium text-slate-600">Comprovativos e Anexos Financeiros</label>
+                  <div className="mt-1">
+                    <label className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm cursor-pointer hover:bg-slate-50 transition-colors w-fit">
+                      <Paperclip size={16} />
+                      Anexar documento financeiro (faturas, autos, certidões)
+                      <input
+                        type="file"
+                        className="hidden"
+                        multiple
+                        onChange={(e) => {
+                          const files = Array.from(e.target.files || []);
+                          const newAttachments = files.map(file => ({
+                            name: file.name,
+                            url: URL.createObjectURL(file),
+                            type: file.type
+                          }));
+                          setFormData({ 
+                            ...formData, 
+                            attachments: [...(formData.attachments || []), ...newAttachments] 
+                          });
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {(formData.attachments || []).length > 0 && (
+                    <div className="mt-4 space-y-2">
+                      {(formData.attachments || []).map((file: any, index: number) => (
+                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-400">
+                              <FileText size={16} />
+                            </div>
+                            <span className="text-sm font-medium text-slate-700">{file.name}</span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const newAttachments = [...(formData.attachments || [])];
+                              newAttachments.splice(index, 1);
+                              setFormData({ ...formData, attachments: newAttachments });
+                            }}
+                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Data da Última Validação / Faturação */}
+                <div className="max-w-xs space-y-1 pt-4 border-t border-slate-200">
+                  <label className="text-[13px] font-medium text-slate-600">
+                    Data da Última Validação / Faturação:
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-blue-500 rounded-md text-sm"
+                    value={formData.dataUltimaFaturacao || ''}
+                    onChange={(e) => setFormData({ ...formData, dataUltimaFaturacao: e.target.value })}
+                  />
+                  <p className="text-[11px] text-slate-400">Data do último auto de medição validado</p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {activeTab === 'tech' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 animate-in fade-in slide-in-from-bottom-2 duration-300">

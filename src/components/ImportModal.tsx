@@ -121,6 +121,7 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
   procedureType: ['tipodeprocedimento', 'procedimento', 'tipoprocedimento'],
   contractType: ['tipodecontrato', 'tipocontrato', 'tipo'],
   signatureDate: ['datadeassinaturadocontrato', 'datadeassinatura', 'dataassinatura', 'assinatura', 'signaturedate', 'datadaassinaturadocontratoinicial'],
+  dataConsignacaoPSS: ['dataconsignacaooupss', 'dataconsignacao', 'consignacaooupss', 'datapss', 'consignacaopss', 'pss'],
   startDate: [
     'datainiciocontrato', 'datainicio', 'dataincio', 'datainciocontrato', 'inicio', 'incio', 'consignacao', 'startdate',
     'prazosdatainicio', 'prazosnovadatainicio', 'datadeiniciodocontrato',
@@ -170,7 +171,7 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
   extincaoValor: ['valorassociado', 'valorextincao', 'extincaovalor', 'valorassociadoaextincao'],
   avaliacaoObservacoes: ['avaliacaoeobservacoes', 'avaliacao', 'observacoesavaliacao', 'avaliacaofornecedor'],
   comunicacoesObservacoes: ['comunicacoesimportanteseobservacoes', 'comunicacoes', 'observacoescomunicacoes', 'comunicacoesimportantes'],
-  planosPagamentoFaturamentos: ['prazosepagamentoscontratados', 'planospagamento', 'pagamentoscontratados', 'planosdefaturacao'],
+  planosPagamentoFaturamentos: ['prazos', 'prazosepagamentoscontratados', 'planospagamento', 'pagamentoscontratados', 'planosdefaturacao'],
   prorrogacoesPrazos: ['prorrogacoesdeprazos', 'prorrogacoesprazos', 'prorrogacoes', 'prorrogacaodeprazos'],
   valorTotalDespesas: [
     'valortotaldedespesasaprovadacontratosadendasindemnizacoesjurosetc',
@@ -196,7 +197,8 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
     'valortotaldefaturacao'
   ],
   percentagem: ['percentagem', 'percentagemexecucao', 'percentagemexecutada', 'pct'],
-  dataUltimaFaturacao: ['datadaultimavalidacao', 'dataultimafaturacao', 'ultimavalidacao', 'dataultimavalidacao', 'dataultimamedicao']
+  dataUltimaFaturacao: ['datadaultimavalidacao', 'dataultimafaturacao', 'ultimavalidacao', 'dataultimavalidacao', 'dataultimamedicao'],
+  execucaoFinanceiraObservacoes: ['observacoesdeexecucaofinanceira', 'observacoesexecucaofinanceira', 'execucaofinanceiraobservacoes', 'observacoesfinanceiras']
 };
 
 // Resolução rigorosa do campo de destino a partir do cabeçalho da coluna Excel
@@ -617,6 +619,7 @@ export const ImportModal = ({
           procedureType: '',
           contractType: '',
           signatureDate: '',
+          dataConsignacaoPSS: '',
           startDate: '',
           endDate: '',
           manager: '',

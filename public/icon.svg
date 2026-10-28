@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0284c7"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="sheet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff"/>
+      <stop offset="100%" stop-color="#f8fafc"/>
+    </linearGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="512" height="512" rx="110" fill="url(#grad)"/>
+  
+  <!-- Document Sheet -->
+  <rect x="110" y="90" width="292" height="332" rx="24" fill="url(#sheet)" filter="drop-shadow(0 12px 24px rgba(0,0,0,0.25))"/>
+  
+  <!-- Folder Tab Accent -->
+  <path d="M140 140 H240 L265 170 H372 V380 H140 Z" fill="#e0f2fe" opacity="0.6"/>
+  
+  <!-- Header bar -->
+  <rect x="145" y="130" width="130" height="18" rx="9" fill="#0284c7"/>
+  
+  <!-- Data Lines -->
+  <rect x="145" y="195" width="222" height="12" rx="6" fill="#94a3b8"/>
+  <rect x="145" y="235" width="222" height="12" rx="6" fill="#cbd5e1"/>
+  <rect x="145" y="275" width="160" height="12" rx="6" fill="#cbd5e1"/>
+  
+  <!-- Excel Grid / Stamp Badge -->
+  <rect x="290" y="295" width="85" height="85" rx="16" fill="#10b981" filter="drop-shadow(0 4px 10px rgba(16,185,129,0.3))"/>
+  <!-- Excel X symbol -->
+  <path d="M312 317 L353 358 M353 317 L312 358" stroke="#ffffff" stroke-width="8" stroke-linecap="round"/>
+</svg>

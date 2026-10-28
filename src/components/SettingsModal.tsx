@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Settings, Mail, Bell, X, Save, Send, Check, Loader2 } from 'lucide-react';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from '../firebase';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -37,7 +35,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   useEffect(() => {
     if (!isOpen) return;
 
-    // Load from localStorage first for instant responsiveness
+    // Load from localStorage for instant responsiveness
     const savedLocal = localStorage.getItem('system_settings_smtp');
     if (savedLocal) {
       try {
@@ -56,31 +54,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         console.error('Error parsing localStorage settings', e);
       }
     }
-
-    // Attempt to load from Firestore if connected
-    const loadFirestoreSettings = async () => {
-      try {
-        const docRef = doc(db, 'settings', 'system');
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          const data = docSnap.data();
-          if (data.smtpServer) setSmtpServer(data.smtpServer);
-          if (data.smtpPort) setSmtpPort(data.smtpPort);
-          if (data.smtpUser) setSmtpUser(data.smtpUser);
-          if (data.smtpPassword) setSmtpPassword(data.smtpPassword);
-          if (data.senderEmail) setSenderEmail(data.senderEmail);
-          if (data.useSSL !== undefined) setUseSSL(data.useSSL);
-          if (data.enableAlerts !== undefined) setEnableAlerts(data.enableAlerts);
-          if (data.enableEmailNotify !== undefined) setEnableEmailNotify(data.enableEmailNotify);
-          if (data.alertDaysBefore) setAlertDaysBefore(data.alertDaysBefore);
-          if (data.alertEmailRecipients) setAlertEmailRecipients(data.alertEmailRecipients);
-        }
-      } catch (err) {
-        // Fallback silently to local storage
-      }
-    };
-
-    loadFirestoreSettings();
   }, [isOpen]);
 
   if (!isOpen) return null;
@@ -103,15 +76,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
     // Save to localStorage
     localStorage.setItem('system_settings_smtp', JSON.stringify(settingsData));
-
-    // Save to Firestore if available
-    try {
-      if (!isQuotaExceeded) {
-        await setDoc(doc(db, 'settings', 'system'), settingsData, { merge: true });
-      }
-    } catch (e) {
-      console.warn('Could not save to Firestore, saved to LocalStorage', e);
-    }
 
     setIsSaving(false);
     if (setToast) {
