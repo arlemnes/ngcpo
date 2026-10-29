@@ -249,6 +249,10 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (localStorage.getItem('isQuotaExceeded') === 'true') {
+      setError('Limite de quota do Firebase atingido. Por favor, tente novamente mais tarde.');
+      return;
+    }
     setIsLoading(true);
     setError('');
 
@@ -274,6 +278,7 @@ function Login({ onLogin }: { onLogin: (user: User) => void }) {
     } catch (err: any) {
       let message = `Erro de conexão: ${err.message}`;
       if (err.code === 'resource-exhausted' || err.message?.includes('quota')) {
+        localStorage.setItem('isQuotaExceeded', 'true');
         message = 'Limite de quota do Firebase atingido. Por favor, tente novamente mais tarde.';
       }
       setError(message);
@@ -576,7 +581,18 @@ export default function App() {
   const [isEmptyRecycleBinModalOpen, setIsEmptyRecycleBinModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState<'active' | 'recycle-bin'>('active');
 
-  const [isQuotaExceeded, setIsQuotaExceeded] = useState(false);
+  const [isQuotaExceeded, setIsQuotaExceeded] = useState(() => {
+    const saved = localStorage.getItem('isQuotaExceeded');
+    // Automatic reset: if it's been more than 24 hours, or just allow manual reset via this flow.
+    return saved === 'true';
+  });
+
+  // Action to reset quota status
+  const resetQuotaStatus = useCallback(() => {
+    localStorage.removeItem('isQuotaExceeded');
+    setIsQuotaExceeded(false);
+    setToast({ message: 'Estado de quota reiniciado.', type: 'success' });
+  }, []);
 
   const handleFirestoreError = useCallback((error: unknown, operationType: OperationType, path: string | null) => {
     const errMsg = error instanceof Error ? error.message : String(error);
@@ -584,6 +600,7 @@ export default function App() {
     
     if (errCode === 'resource-exhausted' || errMsg.includes('quota')) {
       setIsQuotaExceeded(true);
+      localStorage.setItem('isQuotaExceeded', 'true');
       setToast({ message: 'Limite de quota do Firebase atingido. Algumas operações podem falhar.', type: 'error' });
     }
 
@@ -709,6 +726,10 @@ export default function App() {
 
   useEffect(() => {
     const testConnection = async () => {
+      if (localStorage.getItem('isQuotaExceeded') === 'true') {
+        setIsQuotaExceeded(true);
+        return;
+      }
       try {
         // Test connection to Firestore
         await getDocFromServer(doc(db, 'test', 'connection'));
@@ -723,6 +744,7 @@ export default function App() {
         } else if (error.code === 'resource-exhausted' || errMsg.includes('quota')) {
           console.error('Firebase quota exceeded on mount.');
           setIsQuotaExceeded(true);
+          localStorage.setItem('isQuotaExceeded', 'true');
           setIsFirebaseConnected(true); // Still connected, just quota hit
         } else {
           // Other errors (like permission denied) still mean we're connected to the server
@@ -735,82 +757,123 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!isAuthChecked || !user) return;
+    if (!isAuthChecked || !user || isQuotaExceeded) return;
+
+    // Tentar carregar do cache primeiro
+    const cachedContracts = localStorage.getItem('contracts_cache');
+    if (cachedContracts) {
+      setContracts(JSON.parse(cachedContracts));
+      setLoading(false);
+    }
 
     const contractsCol = collection(db, 'contracts');
 
-    const unsubscribe = onSnapshot(contractsCol, (snapshot) => {
-      const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contract));
-      const filtered = data.filter(c => {
-        if (viewMode === 'recycle-bin') {
-          return c.deleted === true;
+    // Carregar dados uma vez (ou manualmente se necessário) para evitar exceder quota
+    const fetchData = async () => {
+      try {
+        const snapshot = await getDocs(contractsCol);
+        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Contract));
+        
+        // Salvar no cache
+        localStorage.setItem('contracts_cache', JSON.stringify(data));
+        
+        const filtered = data.filter(c => {
+          if (viewMode === 'recycle-bin') {
+            return c.deleted === true;
+          }
+          return c.deleted !== true;
+        });
+        setContracts(filtered);
+        setLoading(false);
+      } catch (error: any) {
+        handleFirestoreError(error, OperationType.GET, 'contracts');
+        setContracts([]);
+        let message = 'Erro ao carregar dados';
+        if (error.code === 'resource-exhausted' || error.message?.includes('quota')) {
+          message = 'Limite de quota do Firebase atingido. A utilizar dados em cache.';
+          setIsQuotaExceeded(true);
         }
-        return c.deleted !== true;
-      });
-      setContracts(filtered);
-      setLoading(false);
-    }, (error: any) => {
-      handleFirestoreError(error, OperationType.GET, 'contracts');
-      setContracts([]);
-      let message = 'Erro ao carregar dados';
-      if (error.code === 'resource-exhausted' || error.message?.includes('quota')) {
-        message = 'Limite de quota do Firebase atingido. Por favor, aguarde o reset da quota.';
+        setToast({ message, type: 'error' });
+        setLoading(false);
       }
-      setToast({ message, type: 'error' });
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
-  }, [viewMode, user, isAuthChecked]);
+    fetchData();
+
+    // Remover unsubscribe, não é mais necessário
+    return () => {};
+  }, [user, isAuthChecked, isQuotaExceeded]); // Removed viewMode from deps as filtering is done in memory
+
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
-        try {
-          // Use getDocFromServer to ensure we are not just failing due to cache/offline state
-          const userDoc = await getDocFromServer(doc(db, 'users', firebaseUser.uid));
-          if (userDoc.exists()) {
-            setUser({ id: userDoc.id, ...userDoc.data() } as User);
-          } else {
-            const isAdmin = firebaseUser.email === 'rochaistec@gmail.com' || 
-                            firebaseUser.email === 'luis.rocha@scml.pt' || 
-                            firebaseUser.email === 'admin@admin.com';
-            setUser({
-              id: firebaseUser.uid,
-              username: firebaseUser.email || 'user',
-              email: firebaseUser.email || '',
-              role: isAdmin ? 'admin' : 'user'
-            } as User);
+        // Tentar carregar do cache primeiro
+        const cachedUser = localStorage.getItem('user_cache');
+        if (cachedUser) {
+          setUser(JSON.parse(cachedUser));
+        }
+
+        if (isQuotaExceeded) {
+          console.warn('Quota exceeded, skipping user data fetch');
+        } else {
+          try {
+            // Use getDocFromServer to ensure we are not just failing due to cache/offline state
+            const userDoc = await getDocFromServer(doc(db, 'users', firebaseUser.uid));
+            if (userDoc.exists()) {
+              const userData = { id: userDoc.id, ...userDoc.data() } as User;
+              setUser(userData);
+              localStorage.setItem('user_cache', JSON.stringify(userData));
+            } else {
+              const isAdmin = firebaseUser.email === 'rochaistec@gmail.com' || 
+                              firebaseUser.email === 'luis.rocha@scml.pt' || 
+                              firebaseUser.email === 'admin@admin.com';
+              const userData = {
+                id: firebaseUser.uid,
+                username: firebaseUser.email || 'user',
+                email: firebaseUser.email || '',
+                role: isAdmin ? 'admin' : 'user'
+              } as User;
+              setUser(userData);
+              localStorage.setItem('user_cache', JSON.stringify(userData));
+            }
+          } catch (error: any) {
+            const errMsg = error instanceof Error ? error.message : String(error);
+            if (errMsg.includes('the client is offline')) {
+              console.error('Error fetching user data: Firestore is unreachable. Please check your network or Firebase configuration.');
+            } else if (error.code === 'resource-exhausted' || errMsg.includes('quota')) {
+              console.error('Error fetching user data: Firebase quota exceeded.');
+              setIsQuotaExceeded(true);
+              setToast({ message: 'Limite de quota do Firebase atingido. Alguns dados podem não carregar.', type: 'error' });
+            } else {
+              console.error('Error fetching user data:', error);
+            }
           }
-        } catch (error: any) {
-          const errMsg = error instanceof Error ? error.message : String(error);
-          if (errMsg.includes('the client is offline')) {
-            console.error('Error fetching user data: Firestore is unreachable. Please check your network or Firebase configuration.');
-          } else if (error.code === 'resource-exhausted' || errMsg.includes('quota')) {
-            console.error('Error fetching user data: Firebase quota exceeded.');
-            setToast({ message: 'Limite de quota do Firebase atingido. Alguns dados podem não carregar.', type: 'error' });
-          } else {
-            console.error('Error fetching user data:', error);
-          }
-          // Fallback to basic user info from auth if firestore is unreachable
+        }
+        
+        // Final fallback if user is still not set
+        if (!cachedUser && !user) {
           const isAdmin = firebaseUser.email === 'rochaistec@gmail.com' || 
                           firebaseUser.email === 'luis.rocha@scml.pt' || 
                           firebaseUser.email === 'admin@admin.com';
-          setUser({
+          const userData = {
             id: firebaseUser.uid,
             username: firebaseUser.email || 'user',
             email: firebaseUser.email || '',
             role: isAdmin ? 'admin' : 'user'
-          } as User);
+          } as User;
+          setUser(userData);
+          localStorage.setItem('user_cache', JSON.stringify(userData));
         }
       } else {
         setUser(null);
+        localStorage.removeItem('user_cache');
       }
       setIsAuthChecked(true);
     });
 
     return () => unsubscribe();
-  }, []);
+  }, [isQuotaExceeded]); // Include isQuotaExceeded in dependencies
 
   const handleSave = async (contractData: ContractInput) => {
     setIsSaving(true);
@@ -1310,6 +1373,8 @@ export default function App() {
         'Data da consignação ou PSS': safeFormatDate(c.dataConsignacaoPSS || c.consignacaoDate || c.dataConsignacao),
         'Data início contrato': safeFormatDate(c.prazosNovaDataInicio || c.startDate || c.Datainiciocontrato || c.prazosDataInicio),
         'Data fim contrato': safeFormatDate(c.prazosNovaDataFim || c.endDate || c.DataFimContrato || c.prazosDataFim || c.novaDataFimContrato),
+        'Receção Provisória': safeFormatDate(c.dataRececaoProvisoria || c.rececaoProvisoria),
+        'Conta Final': safeFormatDate(c.dataContaFinal || c.contaFinal),
         'Prazos': stripHtml(c.planosPagamentoFaturamentos),
         'Prorrogações de Prazos': stripHtml(c.prorrogacoesPrazos),
         'Valor total de despesas aprovada(contratos, adendas, indemnizações, juros, etc.)': stripHtml(c.valorTotalDespesas),
@@ -2666,6 +2731,8 @@ const getDefaultContractInput = (): ContractInput => ({
   dataConsignacaoPSS: '',
   prazosNovaDataInicio: '',
   prazosNovaDataFim: '',
+  dataRececaoProvisoria: '',
+  dataContaFinal: '',
   planosPagamentoFaturamentos: '',
   prorrogacoesPrazos: '',
   valorTotalDespesas: '0,00 €',
@@ -2971,6 +3038,20 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
       sanitized.dataConsignacao = isoCons;
     }
 
+    const rawRececao = sanitized.dataRececaoProvisoria || sanitized.rececaoProvisoria || sanitized.rececaoProvisoriaDate || '';
+    if (rawRececao) {
+      const isoRececao = toIsoDate(rawRececao) || rawRececao;
+      sanitized.dataRececaoProvisoria = isoRececao;
+      sanitized.rececaoProvisoria = isoRececao;
+    }
+
+    const rawConta = sanitized.dataContaFinal || sanitized.contaFinal || sanitized.contaFinalDate || '';
+    if (rawConta) {
+      const isoConta = toIsoDate(rawConta) || rawConta;
+      sanitized.dataContaFinal = isoConta;
+      sanitized.contaFinal = isoConta;
+    }
+
     const rawStart = sanitized.prazosNovaDataInicio || sanitized.prazosDataInicio || sanitized.startDate || sanitized.Datainiciocontrato || sanitized.datainiciocontrato || '';
     const rawEnd = sanitized.prazosNovaDataFim || sanitized.prazosDataFim || sanitized.endDate || sanitized.DataFimContrato || sanitized.datafimcontrato || sanitized.novaDataFimContrato || '';
     const isoStart = toIsoDate(rawStart) || rawStart;
@@ -3029,6 +3110,10 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
     const sigVal = toIsoDate(rawSig) || rawSig;
     const rawCons = formData.dataConsignacaoPSS || formData.consignacaoDate || formData.dataConsignacao || '';
     const consVal = toIsoDate(rawCons) || rawCons;
+    const rawRececao = formData.dataRececaoProvisoria || formData.rececaoProvisoria || '';
+    const rececaoVal = toIsoDate(rawRececao) || rawRececao;
+    const rawConta = formData.dataContaFinal || formData.contaFinal || '';
+    const contaVal = toIsoDate(rawConta) || rawConta;
 
     onSave({
       ...formData,
@@ -3037,6 +3122,10 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
       dataAssinaturaContrato: sigVal,
       dataConsignacaoPSS: consVal,
       consignacaoDate: consVal,
+      dataRececaoProvisoria: rececaoVal,
+      rececaoProvisoria: rececaoVal,
+      dataContaFinal: contaVal,
+      contaFinal: contaVal,
       startDate: start,
       endDate: end,
       prazosNovaDataInicio: start,
@@ -3502,6 +3591,8 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
       { label: "Data da consignação ou PSS", value: safeFormatDate(formData.dataConsignacaoPSS || formData.consignacaoDate || formData.dataConsignacao) },
       { label: "Data início contrato", value: safeFormatDate(formData.prazosNovaDataInicio || formData.startDate) },
       { label: "Data fim contrato", value: safeFormatDate(formData.prazosNovaDataFim || formData.endDate || formData.validityDate) },
+      { label: "Receção Provisória", value: safeFormatDate(formData.dataRececaoProvisoria || formData.rececaoProvisoria) },
+      { label: "Conta Final", value: safeFormatDate(formData.dataContaFinal || formData.contaFinal) },
       { label: "Prazos", value: formData.planosPagamentoFaturamentos },
       { label: "Prorrogações de Prazos", value: formData.prorrogacoesPrazos },
       { label: "Pasta Local / Rede", value: formData.localFolderLink },
@@ -4540,12 +4631,14 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
 
           {activeTab === 'prazos' && (
             <div className="space-y-10 animate-in fade-in slide-in-from-bottom-2 duration-300">
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 pt-6">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 pt-6">
                 <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data da Assinatura do Contrato:</label>
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[36px] flex items-end">
+                    Data da Assinatura do Contrato:
+                  </label>
                   <input
                     type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
                     value={toIsoDate(formData.signatureDate || formData.dataAssinaturaContrato || formData.dataAssinatura) || ''}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -4560,10 +4653,12 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data da consignação ou PSS:</label>
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[36px] flex items-end">
+                    Data da consignação ou PSS:
+                  </label>
                   <input
                     type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
                     value={toIsoDate(formData.dataConsignacaoPSS || formData.consignacaoDate || formData.dataConsignacao) || ''}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -4577,10 +4672,12 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data início contrato:</label>
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[36px] flex items-end">
+                    Data início contrato:
+                  </label>
                   <input
                     type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
                     value={toIsoDate(formData.prazosNovaDataInicio || formData.startDate || formData.Datainiciocontrato || formData.prazosDataInicio) || ''}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -4595,10 +4692,12 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[13px] font-medium text-slate-600 block min-h-[20px]">Data fim contrato:</label>
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[36px] flex items-end">
+                    Data fim contrato:
+                  </label>
                   <input
                     type="date"
-                    className="w-full px-3 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
                     value={toIsoDate(formData.prazosNovaDataFim || formData.endDate || formData.DataFimContrato || formData.prazosDataFim || formData.novaDataFimContrato) || ''}
                     onChange={(e) => {
                       const val = e.target.value;
@@ -4612,7 +4711,45 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                       });
                     }}
                   />
-                  <p className="text-[11px] text-slate-400 mt-0.5">Vai atualizar a Data limite de vigor/prazo de execução do contrato.</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5 leading-tight">Vai atualizar a Data limite de vigor/prazo de execução do contrato.</p>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[36px] flex items-end">
+                    Receção Provisória:
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    value={toIsoDate(formData.dataRececaoProvisoria || formData.rececaoProvisoria || formData.rececaoProvisoriaDate) || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        dataRececaoProvisoria: val,
+                        rececaoProvisoria: val,
+                        rececaoProvisoriaDate: val
+                      });
+                    }}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[13px] font-medium text-slate-600 block min-h-[36px] flex items-end">
+                    Conta Final:
+                  </label>
+                  <input
+                    type="date"
+                    className="w-full px-2.5 py-1.5 bg-white border border-slate-300 text-slate-700 outline-none focus:border-slate-400 text-sm rounded-md"
+                    value={toIsoDate(formData.dataContaFinal || formData.contaFinal || formData.contaFinalDate) || ''}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setFormData({
+                        ...formData,
+                        dataContaFinal: val,
+                        contaFinal: val,
+                        contaFinalDate: val
+                      });
+                    }}
+                  />
                 </div>
               </div>
 
@@ -4956,72 +5093,7 @@ const ContractModal: React.FC<ContractModalProps> = ({ onClose, onSave, onDelete
                   </div>
                 </div>
 
-                {/* Observações da Execução Financeira */}
-                <div className="space-y-1 w-full pt-4">
-                  <label className="text-[13px] font-medium text-slate-600">
-                    Observações e Notas da Execução Financeira:
-                  </label>
-                  <textarea
-                    rows={4}
-                    className="w-full px-3 py-2 bg-[#F2F2F2] border border-slate-300 text-slate-700 outline-none focus:border-blue-500 rounded-md text-sm resize-y"
-                    value={formData.execucaoFinanceiraObservacoes || ''}
-                    onChange={(e) => setFormData({ ...formData, execucaoFinanceiraObservacoes: e.target.value })}
-                    placeholder="Registo de adiantamentos, cauções bancárias retidas, faturas pendentes de liquidação, desvios orçamentais ou outras notas financeiras..."
-                  />
-                </div>
 
-                {/* Anexos Financeiros */}
-                <div className="space-y-1.5 pt-4">
-                  <label className="text-[13px] font-medium text-slate-600">Comprovativos e Anexos Financeiros</label>
-                  <div className="mt-1">
-                    <label className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded text-sm cursor-pointer hover:bg-slate-50 transition-colors w-fit">
-                      <Paperclip size={16} />
-                      Anexar documento financeiro (faturas, autos, certidões)
-                      <input
-                        type="file"
-                        className="hidden"
-                        multiple
-                        onChange={(e) => {
-                          const files = Array.from(e.target.files || []);
-                          const newAttachments = files.map(file => ({
-                            name: file.name,
-                            url: URL.createObjectURL(file),
-                            type: file.type
-                          }));
-                          setFormData({ 
-                            ...formData, 
-                            attachments: [...(formData.attachments || []), ...newAttachments] 
-                          });
-                        }}
-                      />
-                    </label>
-                  </div>
-                  {(formData.attachments || []).length > 0 && (
-                    <div className="mt-4 space-y-2">
-                      {(formData.attachments || []).map((file: any, index: number) => (
-                        <div key={index} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg border border-slate-200">
-                          <div className="flex items-center gap-3">
-                            <div className="w-8 h-8 rounded bg-white border border-slate-200 flex items-center justify-center text-slate-400">
-                              <FileText size={16} />
-                            </div>
-                            <span className="text-sm font-medium text-slate-700">{file.name}</span>
-                          </div>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const newAttachments = [...(formData.attachments || [])];
-                              newAttachments.splice(index, 1);
-                              setFormData({ ...formData, attachments: newAttachments });
-                            }}
-                            className="text-slate-400 hover:text-red-500 transition-colors p-1"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
 
                 {/* Data da Última Validação / Faturação */}
                 <div className="max-w-xs space-y-1 pt-4 border-t border-slate-200">

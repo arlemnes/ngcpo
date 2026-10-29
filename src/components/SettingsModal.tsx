@@ -223,61 +223,45 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             <div className="flex items-center gap-2 mb-4">
               <Bell className="w-5 h-5 text-slate-700" />
               <h3 className="text-base font-semibold text-slate-800">
-                Notificações e Alertas
+                Alertas em Tempo Real de Alterações (Criar, Editar, Eliminar)
               </h3>
             </div>
+            <p className="text-sm text-slate-500 mb-4">Notificar por email automaticamente sempre que houver modificações na base de contratos</p>
 
-            <div className="space-y-3 bg-slate-50/60 p-4 rounded-lg border border-slate-200/60">
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <div className="space-y-4 bg-slate-50/60 p-4 rounded-lg border border-slate-200/60">
+              <label className="flex items-center justify-between cursor-pointer select-none">
+                <span className="text-sm font-bold text-slate-800">Alertas Ativos</span>
                 <input
                   type="checkbox"
                   checked={enableAlerts}
                   onChange={(e) => setEnableAlerts(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500/30 cursor-pointer accent-teal-600"
+                  className="w-5 h-5 rounded border-slate-300 text-teal-600 focus:ring-teal-500/30 cursor-pointer accent-teal-600"
                 />
-                <span className="text-sm font-medium text-slate-700">
-                  Enviar alertas automáticos por email sobre prazos e vencimentos de contratos
-                </span>
               </label>
 
-              <label className="flex items-center gap-2.5 cursor-pointer select-none">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {['Criar Novo Contrato', 'Editar / Modificar', 'Eliminar / Reciclar', 'Restaurar Contrato'].map((action) => (
+                  <label key={action} className="flex items-center gap-2 p-2 bg-white border border-slate-200 rounded-md cursor-pointer text-xs">
+                    <input type="checkbox" className="w-4 h-4 rounded border-slate-300 text-teal-600" defaultChecked />
+                    {action}
+                  </label>
+                ))}
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-2">
+                  EMAIL DE DESTINO PARA ALERTAS DE ALTERAÇÃO (CRIAR / EDITAR / ELIMINAR)
+                </label>
                 <input
-                  type="checkbox"
-                  checked={enableEmailNotify}
-                  onChange={(e) => setEnableEmailNotify(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-300 text-teal-600 focus:ring-teal-500/30 cursor-pointer accent-teal-600"
+                  type="text"
+                  value={alertEmailRecipients}
+                  onChange={(e) => setAlertEmailRecipients(e.target.value)}
+                  placeholder="luis.rocha@scml.pt, renata.paixao@scml.pt"
+                  className="w-full px-3.5 py-2 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-xs"
                 />
-                <span className="text-sm font-medium text-slate-700">
-                  Notificar responsáveis em caso de modificações e pareceres
-                </span>
-              </label>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Dias de antecedência para alertas de caducidade
-                  </label>
-                  <input
-                    type="number"
-                    value={alertDaysBefore}
-                    onChange={(e) => setAlertDaysBefore(e.target.value)}
-                    placeholder="30"
-                    className="w-full px-3.5 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-xs"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-semibold text-slate-700 mb-1">
-                    Email para receção de relatórios e alertas
-                  </label>
-                  <input
-                    type="email"
-                    value={alertEmailRecipients}
-                    onChange={(e) => setAlertEmailRecipients(e.target.value)}
-                    placeholder="rochaistec@gmail.com"
-                    className="w-full px-3.5 py-1.5 bg-white border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 shadow-xs"
-                  />
-                </div>
+                <p className="text-xs text-slate-500 mt-2">
+                  Os alertas de modificações, criação ou eliminação de contratos são enviados <b>exclusivamente</b> para estes endereços, sem envio para outros utilizadores ou Direções Técnicas.
+                </p>
               </div>
             </div>
           </div>

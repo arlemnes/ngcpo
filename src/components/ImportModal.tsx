@@ -122,6 +122,8 @@ const FIELD_SYNONYMS: Record<string, string[]> = {
   contractType: ['tipodecontrato', 'tipocontrato', 'tipo'],
   signatureDate: ['datadeassinaturadocontrato', 'datadeassinatura', 'dataassinatura', 'assinatura', 'signaturedate', 'datadaassinaturadocontratoinicial'],
   dataConsignacaoPSS: ['dataconsignacaooupss', 'dataconsignacao', 'consignacaooupss', 'datapss', 'consignacaopss', 'pss'],
+  dataRececaoProvisoria: ['rececaoprovisoria', 'datarececaoprovisoria', 'rececaoprovisaoria', 'autorececaoprovisoria', 'rececao', 'provisoria'],
+  dataContaFinal: ['contafinal', 'datacontafinal', 'contafinaldata'],
   startDate: [
     'datainiciocontrato', 'datainicio', 'dataincio', 'datainciocontrato', 'inicio', 'incio', 'consignacao', 'startdate',
     'prazosdatainicio', 'prazosnovadatainicio', 'datadeiniciodocontrato',
@@ -620,6 +622,8 @@ export const ImportModal = ({
           contractType: '',
           signatureDate: '',
           dataConsignacaoPSS: '',
+          dataRececaoProvisoria: '',
+          dataContaFinal: '',
           startDate: '',
           endDate: '',
           manager: '',
